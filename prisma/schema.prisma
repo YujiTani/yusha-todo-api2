@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id      Int      @id @default(autoincrement()) 
+  uuid    Int
+  email   String   @unique
+  name    String? // null許容
+  state   Int   @default(1) // 状態管理
+  password    String
+  created_at    DateTime @default(now())
+  deleted_flg   Boolean   @default(false)
+  update_at   DateTime @default(now())
+  stutas    Stutas? // status管理
+  patyId    Int // 所属パーティ
+  paty   Paty    @relation(fields: [patyId], references: [id])
+  tasks   Task[] // 持っているタスク
+  subTask   SubTask[] // 持っているタスク
+}
+
+model Stutas {
+  id      Int      @id @default(autoincrement())
+  user    User    @relation(fields: [userId], references: [id])
+  userId    Int   @unique
+  lv    Int   @default(1)
+  total_exp   BigInt   @default(0)
+  strength    Int   @default(3)
+  intelligence    Int   @default(3)
+  creativity    Int   @default(3)
+  activity    Int   @default(3)
+  quality_of_life    Int   @default(3)
+  deleted_flg   Boolean   @default(false)
+}
+
+model Paty {
+  id      Int      @id @default(autoincrement())
+  uuid    Int   @unique
+  name    String
+  description   String?
+  created_at    DateTime @default(now())
+  deleted_flg   Boolean   @default(false)
+  update_at   DateTime @default(now())
+  users   User[]
+}
+
+
+model Task {
+  id      Int      @id @default(autoincrement())
+  uuid    Int
+  user    User    @relation(fields: [userId], references: [id])
+  userId    Int   @unique
+  SubTasks    SubTask[]
+  name    String? // null許容
+  description String?
+  priority  Int   @default(1)
+  state   Int   @default(1)
+  isHistory   Boolean   @default(false)
+  created_at    DateTime @default(now())
+  limited_at    DateTime @default(now())
+  deleted_flg   Boolean   @default(false)
+  update_at   DateTime @default(now())
+}
+
+model SubTask {
+  id      Int      @id @default(autoincrement())
+  uuid    Int
+  user    User    @relation(fields: [userId], references: [id])
+  userId    Int   @unique
+  parent    Task    @relation(fields: [id], references: [id])
+  parentId    Int   @unique
+  name    String? // null許容
+  description String?
+  priority  Int   @default(1)
+  state   Int   @default(1)
+  isHistory   Boolean   @default(false)
+  created_at    DateTime @default(now())
+  limited_at    DateTime @default(now())
+  deleted_flg   Boolean   @default(false)
+  update_at   DateTime @default(now())
+}
