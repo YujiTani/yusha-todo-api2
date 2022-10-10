@@ -14,4 +14,4 @@ const config = {
     server: SERVER
 };
 
-export default config;
+export { SERVER_HOSTNAME, SERVER_PORT, config };

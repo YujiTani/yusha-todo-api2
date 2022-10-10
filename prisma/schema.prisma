@@ -12,7 +12,7 @@ datasource db {
 
 model User {
   id      Int      @id @default(autoincrement()) 
-  uuid    Int
+  uuid    String   @unique
   email   String   @unique
   name    String? // null許容
   state   Int   @default(1) // 状態管理
@@ -21,19 +21,19 @@ model User {
   deleted_flg   Boolean   @default(false)
   update_at   DateTime @default(now())
   stutas    Stutas? // status管理
-  patyId    Int // 所属パーティ
-  paty   Paty    @relation(fields: [patyId], references: [id])
+  patyId    Int? // 所属パーティ
+  paty   Paty?    @relation(fields: [patyId], references: [id])
   tasks   Task[] // 持っているタスク
-  subTask   SubTask[] // 持っているタスク
+  subTasks   SubTask[] // 持っているタスク
 }
 
 model Stutas {
   id      Int      @id @default(autoincrement())
-  user    User    @relation(fields: [userId], references: [id])
-  userId    Int   @unique
+  user    User    @relation(fields: [userId], references: [uuid])
+  userId    String   @unique
   lv    Int   @default(1)
-  total_exp   BigInt   @default(0)
-  strength    Int   @default(3)
+  total_exp   Int   @default(0)
+  strength    Int   @default(3) // ただの見た目ポイント
   intelligence    Int   @default(3)
   creativity    Int   @default(3)
   activity    Int   @default(3)
@@ -55,9 +55,9 @@ model Paty {
 
 model Task {
   id      Int      @id @default(autoincrement())
-  uuid    Int
-  user    User    @relation(fields: [userId], references: [id])
-  userId    Int   @unique
+  uuid    String  @unique
+  user    User    @relation(fields: [userId], references: [uuid])
+  userId    String
   SubTasks    SubTask[]
   name    String? // null許容
   description String?
@@ -76,7 +76,7 @@ model SubTask {
   user    User    @relation(fields: [userId], references: [id])
   userId    Int   @unique
   parent    Task    @relation(fields: [id], references: [id])
-  parentId    Int   @unique
+  parentId    Int?   @unique
   name    String? // null許容
   description String?
   priority  Int   @default(1)
