@@ -1,113 +1,189 @@
 import { Request, Response } from 'express';
 import logging from '../config/logging';
-import connect from '../config/postgresql';
 import { PrismaClient } from '@prisma/client';
+import UUID from 'uuidjs';
+import { SERVER_HOSTNAME, SERVER_PORT } from '../config/config';
 
 const NAMESPACE = 'Task Controller';
 const prisma = new PrismaClient();
 
-const getAll = async (req: Request, res: Response) => {
-    logging.info(NAMESPACE, `task get route called.`);
+// 指定ユーザーの全タスクを取得
+const getAllByUserId = async (req: Request, res: Response) => {
+    logging.info(NAMESPACE, `task getAllByUserId route called.`);
+    const userId = req.params.userId;
 
     try {
-        const allTodos = await prisma.task.findMany();
-        console.log(allTodos);
+        const allTask = await prisma.task.findMany({
+            where: {
+                userId,
+                deleted_flg: false
+            },
+            include: { user: true }
+        });
 
-        res.status(200).json();
+        if (allTask.length === 0) {
+            res.status(200).send('登録されたタスクはありません。');
+        }
+
+        res.status(200).json(allTask);
     } catch (error) {
         console.warn(error);
     }
 };
 
-const getById = (req: Request, res: Response) => {
+// 指定ユーザーの指定タスクを取得
+// 指定task.uuidに一致するタスクを取得
+// Memo: URLにuserIdを含んだ方がいいかもしれない
+const getById = async (req: Request, res: Response) => {
     logging.info(NAMESPACE, `task getById  route called.`);
-    const id = parseInt(req.params.id);
-    console.log('id:', id);
+    const taskId = req.params.id;
 
     try {
-        connect.query(`SELECT * FROM public."task" WHERE id = ${id}`, (error, results) => {
-            if (error) {
-                throw error;
-            }
-
-            if (results.rows.length === 0) {
-                res.status(204).send('指定されたデータはありません');
-                return;
-            }
-
-            res.status(200).json(results.rows[0]);
+        const task = await prisma.task.findUnique({
+            where: {
+                uuid: taskId
+            },
+            include: { user: true }
         });
+
+        if (!task) {
+            res.status(404).send('お探しのタスクは登録されておりません。');
+        }
+
+        res.status(200).json(task);
     } catch (error) {
         console.warn(error);
     }
 };
 
-const create = (req: Request, res: Response) => {
+// 指定ユーザーの新規タスクを登録
+const create = async (req: Request, res: Response) => {
     logging.info(NAMESPACE, `task create route called.`);
-    const { name, description } = req.body;
+    const userId = req.params.userId;
+    const { name, description, priority, limited_at } = req.body;
 
     try {
-        connect.query(
-            `INSERT INTO public."task" ("name", "description", "created_at", "updated_at") VALUES ($1, $2, $3, $4)`,
-            [name, description, new Date(), new Date()],
-            (error, results) => {
-                if (error) {
-                    throw error;
-                }
-                res.status(201).send(`新規タスクを登録しました。
-                登録データ
-                タスク名: ${name}
-                タスク内容: ${description}
-                `);
+        const ID: string = UUID.generate();
+        const newTask = await prisma.task.create({
+            data: {
+                uuid: ID,
+                userId,
+                name,
+                description,
+                priority,
+                created_at: new Date(),
+                limited_at,
+                deleted_flg: false,
+                update_at: new Date()
             }
-        );
+        });
+
+        res.header('Location', `${SERVER_HOSTNAME}:${SERVER_PORT}/task/${newTask.uuid}/user/${userId}`);
+        res.status(201).send({ message: '新規タスクを登録しました', newTask });
     } catch (error) {
         console.warn(error);
     }
 };
 
-const updateById = (req: Request, res: Response) => {
+// 指定タスクを更新
+const updateById = async (req: Request, res: Response) => {
     logging.info(NAMESPACE, `task updateById route called.`);
-    const id = parseInt(req.params.id);
-    const { name, description } = req.body;
+    const id = req.params.id;
+    const { name, description, priority, limited_at } = req.body;
 
     try {
-        connect.query(
-            `UPDATE public."task" SET "name" = $1, "description" = $2, "updated_at" = $3 WHERE id = ${id}`,
-            [name, description, new Date()],
-            (error, results) => {
-                if (error) {
-                    throw error;
-                }
-
-                console.log('results:', results);
-
-                if (results.rows.length === 0) {
-                    return res.status(204).json(results.rows);
-                }
-
-                res.status(200).send(`タスクID: ${id}の情報を更新しました`);
+        const updateTask = await prisma.task.update({
+            where: {
+                uuid: id
+            },
+            data: {
+                name,
+                description,
+                priority,
+                limited_at,
+                update_at: new Date()
             }
-        );
-    } catch (error) {
-        console.warn(error);
-    }
-};
+        });
 
-const deleteById = (req: Request, res: Response) => {
-    logging.info(NAMESPACE, `task deleteById route called.`);
-    const id = parseInt(req.params.id);
-
-    try {
-        connect.query(`DELETE FROM public."task" WHERE id = ${id}`, (error, results) => {
-            if (error) {
-                throw error;
-            }
-            res.status(200).send(`タスクID: ${id}を削除しました`);
+        res.status(200).send({
+            message: 'タスクの更新を行いました',
+            updateTask
         });
     } catch (error) {
         console.warn(error);
     }
 };
 
-export default { getAll, getById, create, updateById, deleteById };
+/* 指定タスクを復元 */
+const recoverById = async (req: Request, res: Response) => {
+    logging.info(NAMESPACE, `task recoverById route called.`);
+    const taskId = req.params.id;
+
+    try {
+        const task = await prisma.task.findUnique({
+            where: {
+                uuid: taskId
+            }
+        });
+
+        if (task?.deleted_flg) {
+            const recoverTask = await prisma.task.update({
+                where: {
+                    uuid: taskId
+                },
+                data: {
+                    deleted_flg: false
+                }
+            });
+            res.status(200).send({
+                message: `タスクID: ${taskId}を復元しました。`,
+                recoverTask
+            });
+        }
+
+        res.status(404).send({
+            message: '削除タスクの中に見つかりません。'
+        });
+    } catch (error) {
+        console.warn(error);
+    }
+};
+
+// 指定タスクを削除
+const deleteById = async (req: Request, res: Response) => {
+    const taskId = req.params.id;
+
+    try {
+        const task = await prisma.task.findUnique({
+            where: {
+                uuid: taskId
+            }
+        });
+
+        if (task?.deleted_flg) {
+            logging.info(NAMESPACE, `task deleteById route called.`);
+            await prisma.task.delete({
+                where: {
+                    uuid: taskId
+                }
+            });
+
+            res.status(200).send(`タスクID: ${taskId}を完全削除しました。`);
+        }
+        logging.info(NAMESPACE, `task removeById route called.`);
+        await prisma.task.update({
+            where: {
+                uuid: taskId
+            },
+            data: {
+                deleted_flg: true
+            }
+        });
+
+        res.status(200).send(`タスクID: ${taskId}を論理削除しました。`);
+    } catch (error) {
+        console.warn(error);
+    }
+};
+
+export default { getAllByUserId, getById, create, updateById, recoverById, deleteById };
