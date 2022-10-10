@@ -3,15 +3,31 @@ import logging from '../config/logging';
 import { PrismaClient } from '@prisma/client';
 import UUID from 'uuidjs';
 import { SERVER_HOSTNAME, SERVER_PORT } from '../config/config';
+import bcrypt from 'bcrypt';
+import { verify } from '../server/tokens';
 
 const NAMESPACE = 'User Controller';
 const prisma = new PrismaClient();
+const saltRounds = 10;
 
 // 全ユーザーを取得
 const getAll = async (req: Request, res: Response) => {
     logging.info(NAMESPACE, `user get route called.`);
 
     try {
+        if (req.headers['authorization'] === undefined) {
+            return res.status(401).json({
+                message: '認証失敗'
+            });
+        }
+
+        const verifyResponse = await verify(req.headers['authorization']);
+        if (verifyResponse === 'invalid token') {
+            return res.status(401).json({
+                message: '認証失敗'
+            });
+        }
+
         const allUser = await prisma.user.findMany({
             where: { deleted_flg: false },
             include: { stutas: true }
@@ -54,41 +70,6 @@ const getById = async (req: Request, res: Response) => {
         res.status(200).json({
             message: '指定ユーザーを取得しました。',
             user
-        });
-    } catch (error) {
-        console.warn(error);
-    }
-};
-
-// 新規ユーザーを登録
-const create = async (req: Request, res: Response) => {
-    logging.info(NAMESPACE, `user create route called.`);
-    const { email, name, password } = req.body;
-
-    try {
-        const ID: string = UUID.generate();
-        const newUser = await prisma.user.create({
-            data: {
-                uuid: ID,
-                email,
-                name,
-                password,
-                created_at: new Date(),
-                deleted_flg: false,
-                update_at: new Date()
-            }
-        });
-
-        const newStutas = await prisma.stutas.create({
-            data: {
-                userId: newUser.uuid
-            }
-        });
-        res.header('Location', `http://${SERVER_HOSTNAME}:${SERVER_PORT}/user/${newUser.uuid}`);
-        res.status(200).send({
-            message: '新規ユーザーを登録しました。',
-            newUser,
-            newStutas
         });
     } catch (error) {
         console.warn(error);
