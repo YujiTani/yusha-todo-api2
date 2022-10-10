@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import logging from '../config/logging';
 import { PrismaClient } from '@prisma/client';
 import UUID from 'uuidjs';
+import { SERVER_HOSTNAME, SERVER_PORT } from '../config/config';
 
 const NAMESPACE = 'User Controller';
 const prisma = new PrismaClient();
@@ -83,7 +84,7 @@ const create = async (req: Request, res: Response) => {
                 userId: newUser.uuid
             }
         });
-
+        res.header('Location', `http://${SERVER_HOSTNAME}:${SERVER_PORT}/user/${newUser.uuid}`);
         res.status(200).send({
             message: '新規ユーザーを登録しました。',
             newUser,

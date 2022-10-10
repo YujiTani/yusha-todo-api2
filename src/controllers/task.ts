@@ -22,10 +22,15 @@ const getAllByUserId = async (req: Request, res: Response) => {
         });
 
         if (allTask.length === 0) {
-            res.status(200).send('登録されたタスクはありません。');
+            res.status(200).send({
+                message: '登録されたタスクはありません。'
+            });
         }
 
-        res.status(200).json(allTask);
+        res.status(200).json({
+            message: `ユーザーID: ${userId}のタスクを全件取得しました`,
+            allTask
+        });
     } catch (error) {
         console.warn(error);
     }
@@ -47,10 +52,15 @@ const getById = async (req: Request, res: Response) => {
         });
 
         if (!task) {
-            res.status(404).send('お探しのタスクは登録されておりません。');
+            res.status(404).send({
+                message: 'お探しのタスクは登録されておりません。'
+            });
         }
 
-        res.status(200).json(task);
+        res.status(200).json({
+            message: 'タスクを１件取得しました',
+            task
+        });
     } catch (error) {
         console.warn(error);
     }
@@ -78,8 +88,11 @@ const create = async (req: Request, res: Response) => {
             }
         });
 
-        res.header('Location', `${SERVER_HOSTNAME}:${SERVER_PORT}/task/${newTask.uuid}/user/${userId}`);
-        res.status(201).send({ message: '新規タスクを登録しました', newTask });
+        res.header('Location', `http://${SERVER_HOSTNAME}:${SERVER_PORT}/task/${newTask.uuid}/user/${userId}`);
+        res.status(201).send({
+            message: '新規タスクを登録しました',
+            newTask
+        });
     } catch (error) {
         console.warn(error);
     }
@@ -168,7 +181,10 @@ const deleteById = async (req: Request, res: Response) => {
                 }
             });
 
-            res.status(200).send(`タスクID: ${taskId}を完全削除しました。`);
+            res.status(200).send({
+                message: `タスクID: ${taskId}を完全削除しました。`,
+                task
+            });
         }
         logging.info(NAMESPACE, `task removeById route called.`);
         await prisma.task.update({
@@ -180,7 +196,10 @@ const deleteById = async (req: Request, res: Response) => {
             }
         });
 
-        res.status(200).send(`タスクID: ${taskId}を論理削除しました。`);
+        res.status(200).send({
+            message: `タスクID: ${taskId}を論理削除しました。`,
+            task
+        });
     } catch (error) {
         console.warn(error);
     }
